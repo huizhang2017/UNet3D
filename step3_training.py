@@ -17,6 +17,10 @@ if __name__ == '__main__':
     train_list = './train_list.csv'
     val_list = './val_list.csv'
     
+    model_path = './models/'
+    model_name = 'unet3d_test'
+    checkpoint_name = 'latest_checkpoint.tar'
+    
     num_classes = 3
     num_channels = 1
     num_epochs = 5
@@ -24,15 +28,15 @@ if __name__ == '__main__':
     train_batch_size = 5
     val_batch_size = 1
     num_batches_print = 20
-    model_name = 'unet3d_test'
+    
     
     # set plotter
     global plotter
     plotter = utils.VisdomLinePlotter(env_name=model_name)
     
     # mkdir 'models'
-    if not os.path.exists('./models'):
-        os.mkdir('./models')
+    if not os.path.exists(model_path):
+        os.mkdir(model_path)
     
     # set dataset
     training_dataset = CBCT_Dataset(train_list)
@@ -51,8 +55,8 @@ if __name__ == '__main__':
     # set model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    unet3d = UNet3D(in_channels=num_channels, out_channels=num_classes ).to(device, dtype=torch.float)
-    opt = optim.Adam(unet3d.parameters(), lr=0.001)
+    model = UNet3D(in_channels=num_channels, out_channels=num_classes ).to(device, dtype=torch.float)
+    opt = optim.Adam(model.parameters(), lr=0.001)
     
     losses, metrics = [], []
     val_losses, val_metrics = [], []
@@ -65,7 +69,7 @@ if __name__ == '__main__':
     
     # eval model first to check gpu memory
     print('Pre-evaluating model...')
-    unet3d.eval()
+    model.eval()
     with torch.no_grad():
         val_loss_epoch = 0.0
         val_metric_epoch = 0.0
@@ -76,7 +80,7 @@ if __name__ == '__main__':
             one_hot_labels = nn.functional.one_hot(val_labels[:, 0, :, :, :], num_classes=num_classes)
             one_hot_labels = one_hot_labels.permute(0, 4, 1, 2, 3)
             
-            val_outputs = unet3d(val_inputs).detach()
+            val_outputs = model(val_inputs).detach()
             val_loss = Generalized_Dice_Loss(val_outputs, one_hot_labels, torch.Tensor([0.0, 1.0, 1.0]).to(device, dtype=torch.float).to(device, dtype=torch.float)).detach()
             val_metric = weighting_DSC(val_outputs, one_hot_labels, torch.Tensor([0.0, 1.0, 1.0]).to(device, dtype=torch.float).to(device, dtype=torch.float)).detach()
             
@@ -86,14 +90,13 @@ if __name__ == '__main__':
         print('[Pre-evaluation, val_loss: {}, val_dsc: {}'.format(val_loss/len(val_loader), val_metric/len(val_loader)))
         val_loss_epoch = 0.0
         val_metric_epoch = 0.0
-#        torch.cuda.empty_cache()
     
     print('Training model...')
     class_weights = torch.Tensor([0.05, 1.0, 2.0]).to(device, dtype=torch.float).to(device, dtype=torch.float)
     for epoch in range(num_epochs):
 
         # training
-        unet3d.train()
+        model.train()
         running_loss = 0.0
         running_metric = 0.0
         loss_epoch = 0.0
@@ -109,7 +112,7 @@ if __name__ == '__main__':
             opt.zero_grad()
             
             # forward + backward + optimize
-            outputs = unet3d(inputs)
+            outputs = model(inputs)
             loss = Generalized_Dice_Loss(outputs, one_hot_labels, class_weights)
             metric = weighting_DSC(outputs, one_hot_labels, class_weights)
             loss.backward()
@@ -134,18 +137,17 @@ if __name__ == '__main__':
         # save the checkpoint
         torch.save({
                     'epoch': epoch,
-                    'model_state_dict': unet3d.state_dict(),
+                    'model_state_dict': model.state_dict(),
                     'optimizer_state_dict': opt.state_dict(),
                     'loss': loss,
-                    'metric': metric}, './models/checkpoint.tar')
+                    'metric': metric}, model_path+'latest_checkpoint.tar')
         
         #reset
         loss_epoch = 0.0
         metric_epoch = 0.0
-#        torch.cuda.empty_cache()
                 
         # validation
-        unet3d.eval()
+        model.eval()
         with torch.no_grad():
             running_val_loss = 0.0
             running_val_metric = 0.0
@@ -158,7 +160,7 @@ if __name__ == '__main__':
                 one_hot_labels = nn.functional.one_hot(val_labels[:, 0, :, :, :], num_classes=num_classes)
                 one_hot_labels = one_hot_labels.permute(0, 4, 1, 2, 3)
                 
-                val_outputs = unet3d(val_inputs).detach()
+                val_outputs = model(val_inputs).detach()
                 val_loss = Generalized_Dice_Loss(val_outputs, one_hot_labels, class_weights).detach()
                 val_metric = weighting_DSC(val_outputs, one_hot_labels, class_weights).detach()
                 
@@ -172,15 +174,20 @@ if __name__ == '__main__':
                     running_val_loss = 0.0
                     running_val_metric = 0.0
             
+            # save the best model
+            if best_val_dsc < val_metric_epoch/len(val_loader):
+                best_val_dsc = val_metric_epoch/len(val_loader)
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': opt.state_dict(),
+                    'loss': loss,
+                    'metric': metric}, model_path+'{}_best.tar'.format(model_name))
+                
             val_losses.append(val_loss_epoch/len(val_loader))
             val_metrics.append(val_metric_epoch/len(val_loader))
             val_loss_epoch = 0.0
             val_metric_epoch = 0.0
-            
-            # save the best model
-            if best_val_dsc < val_metric_epoch/len(val_loader):
-                best_val_dsc = val_metric_epoch/len(val_loader)
-                torch.save(unet3d.state_dict(), './models/{0}_best.pt'.format(model_name))
             
             # output current status
             print('*****\nEpoch: {0}/{1}, loss: {2}, dsc: {3}\n         val_loss: {4}, val_dsc: {5}\n*****'.format(epoch+1, num_epochs, losses[-1], metrics[-1], val_losses[-1], val_metrics[-1]))
@@ -188,7 +195,6 @@ if __name__ == '__main__':
             plotter.plot('DSC', 'train', 'DSC', epoch+1, metrics[-1])
             plotter.plot('loss', 'val', 'Loss', epoch+1, val_losses[-1])
             plotter.plot('DSC', 'val', 'DSC', epoch+1, val_metrics[-1])
-#            torch.cuda.empty_cache()
             
     # save all losses and metrics data
     pd_dict = {'loss': losses, 'DSC': metrics, 'val_loss': val_losses, 'val_DSC': val_metrics}
