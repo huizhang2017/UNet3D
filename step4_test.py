@@ -104,7 +104,7 @@ if __name__ == '__main__':
                         
             # output test result
             itk_predict_label = itk.image_view_from_array(predicted_label)
-            itk.imwrite(itk_predict_label, 'test_result.nrrd')
+            itk.imwrite(itk_predict_label, 'Sample_{}_deployed.nrrd'.format(i_sample))
             
             # convert predict result and label to one-hot maps
             tensor_predicted_label = torch.from_numpy(predicted_label)
@@ -116,12 +116,14 @@ if __name__ == '__main__':
             one_hot_labels = nn.functional.one_hot(tensor_np_label[:, :, :], num_classes=num_classes)
             one_hot_labels = one_hot_labels.permute(3, 0, 1, 2)
             
+            # calculate DSC
             dsc = DSC(one_hot_predicted_label, one_hot_labels)
             dsc_label_1.append(dsc[0])
             dsc_label_2.append(dsc[1])
-            
+        
+    # output all DSCs
     all_dsc = pd.DataFrame(list(zip(test_list, dsc_label_1, dsc_label_2)), columns=['Sample', 'Label 1', 'Label 2'])
-    all_dsc.to_csv('test_report.csv', header=True, index=False)
+    all_dsc.to_csv('test_DSC_report.csv', header=True, index=False)
             
     
             

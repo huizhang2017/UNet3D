@@ -28,9 +28,8 @@ if __name__ == '__main__':
     model_name = 'checkpoint.tar'
     
     image_path = 'D:/Downloads/Alveolar_Cleft/GroundTruth/flip_Res0p4_smoothed/'
-    test_list = [27]
-    test_image_filename = 'NORMAL0{0}_cbq-n3-7.hdr'
-    test_label_filename = 'NORMAL0{0}-ls-corrected-ordered-smoothed.nrrd'
+    sample_list = [27]
+    sample_image_filename = 'NORMAL0{0}_cbq-n3-7.hdr'
     
     num_classes = 3
     num_channels = 1
@@ -53,14 +52,12 @@ if __name__ == '__main__':
     print('Testing')
     model.eval()
     with torch.no_grad():
-        for i_sample in test_list:
+        for i_sample in sample_list:
             
             # read image and label (annotation)
-            itk_image = itk.imread(image_path+test_image_filename.format(i_sample))
-            itk_annotation = itk.imread(image_path+test_label_filename.format(i_sample))
+            itk_image = itk.imread(image_path+sample_image_filename.format(i_sample))
             np_image = itk.array_from_image(itk_image)
-            np_label = itk.array_from_image(itk_annotation)
-            predict_label = np.zeros(np_label.shape)
+            predict_label = np.zeros(np_image.shape)
         
             # normalized
             np_image = (np_image - np_image.mean())/ np_image.std()
@@ -83,11 +80,6 @@ if __name__ == '__main__':
             image_patches = tensor_image.unfold(1, patch_size[0], get_stride(np_image.shape[1], patch_size[0])).unfold(2, patch_size[1], get_stride(np_image.shape[2], patch_size[1])).unfold(3, patch_size[2], get_stride(np_image.shape[3], patch_size[2]))
             image_patches = image_patches.reshape(-1, 1, patch_size[0], patch_size[1], patch_size[2])
             patch_image = image_patches
-            
-            # send mini-batch to device
-#            val_inputs, val_labels = batched_val_sample['image'].to(device, dtype=torch.float), batched_val_sample['label'].to(device, dtype=torch.long)
-#            one_hot_labels = nn.functional.one_hot(val_labels[:, 0, :, :, :], num_classes=num_classes)
-#            one_hot_labels = one_hot_labels.permute(0, 4, 1, 2, 3)
            
             patch_output = np.zeros(patch_image.shape)
             for i_patch in range(patch_image.shape[0]):
@@ -110,7 +102,7 @@ if __name__ == '__main__':
                         
             # output result
             itk_predict_label = itk.image_view_from_array(predict_label)
-            itk.imwrite(itk_predict_label, 'test_result.nrrd')
+            itk.imwrite(itk_predict_label, 'Sample_{}_deployed.nrrd'.format(i_sample))
             
     
             
