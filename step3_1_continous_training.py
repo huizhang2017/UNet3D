@@ -17,15 +17,17 @@ if __name__ == '__main__':
     train_list = './train_list.csv'
     val_list = './val_list.csv'
     
+    previous_check_point_path = './models/'
+    previous_check_point_name = 'latest_checkpoint.tar'
     model_path = './models/'
-    model_name = 'unet3d_test' #remember to include the project title (e.g., ALV)
-    checkpoint_name = 'latest_checkpoint.tar'
+    model_name = 'unet3d_cont_test'
+    checkpoint_name = 'latest2_checkpoint.tar'
     
     num_classes = 3
     num_channels = 1
-    num_epochs = 3
+    num_epochs = 20
     num_workers = 4
-    train_batch_size = 5
+    train_batch_size = 2
     val_batch_size = 1
     num_batches_print = 20
     
@@ -57,25 +59,40 @@ if __name__ == '__main__':
     model = UNet3D(in_channels=num_channels, out_channels=num_classes).to(device, dtype=torch.float)
     opt = optim.Adam(model.parameters(), lr=0.001, amsgrad=True)
     
-    losses, metrics = [], []
-    val_losses, val_metrics = [], []
+    # re-load
+    checkpoint = torch.load(previous_check_point_path+previous_check_point_name)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    opt.load_state_dict(checkpoint['optimizer_state_dict'])
+    epoch_init = checkpoint['epoch']
+    losses = checkpoint['losses']
+    metrics = checkpoint['metrics']
+    val_losses = checkpoint['val_losses']
+    val_metrics = checkpoint['val_metrics']
+    del checkpoint
+    
+    # plot previous data
+    for i_epoch in range(len(losses)):
+        plotter.plot('loss', 'train', 'Loss', i_epoch+1, losses[i_epoch])
+        plotter.plot('DSC', 'train', 'DSC', i_epoch+1, metrics[i_epoch])
+        plotter.plot('loss', 'val', 'Loss', i_epoch+1, val_losses[i_epoch])
+        plotter.plot('DSC', 'val', 'DSC', i_epoch+1, val_metrics[i_epoch])
     
     best_val_dsc = 0.0
     
     #cudnn
     torch.backends.cudnn.benchmark = True
     torch.backends.cudnn.enabled = True
-        
-    print('Training model...')
+    
+    print('Continuous Training...')
     class_weights = torch.Tensor([0.05, 1.0, 2.0]).to(device, dtype=torch.float).to(device, dtype=torch.float)
-    for epoch in range(num_epochs):
+    for epoch in range(epoch_init, num_epochs):
 
         # training
         model.train()
         running_loss = 0.0
         running_metric = 0.0
         loss_epoch = 0.0
-        metric_epoch = 0.0        
+        metric_epoch = 0.0
         for i_batch, batched_sample in enumerate(train_loader):
 
             # send mini-batch to device            
@@ -140,7 +157,7 @@ if __name__ == '__main__':
                     print('[Epoch: {0}/{1}, Val batch: {2}/{3}] val_loss: {4}, val_dsc: {5}'.format(epoch+1, num_epochs, i_batch+1, len(val_loader), running_val_loss/num_batches_print, running_val_metric/num_batches_print))
                     running_val_loss = 0.0
                     running_val_metric = 0.0
-            
+                
             # record losses and metrics
             val_losses.append(val_loss_epoch/len(val_loader))
             val_metrics.append(val_metric_epoch/len(val_loader))
@@ -157,7 +174,7 @@ if __name__ == '__main__':
             plotter.plot('DSC', 'val', 'DSC', epoch+1, val_metrics[-1])
             
         # save the checkpoint
-        torch.save({'epoch': epoch+1,
+        torch.save({'epoch': epoch,
                     'model_state_dict': model.state_dict(),
                     'optimizer_state_dict': opt.state_dict(),
                     'losses': losses,
@@ -169,7 +186,7 @@ if __name__ == '__main__':
         # save the best model
         if best_val_dsc < val_metrics[-1]:
             best_val_dsc = val_metrics[-1]
-            torch.save({'epoch': epoch+1,
+            torch.save({'epoch': epoch,
                         'model_state_dict': model.state_dict(),
                         'optimizer_state_dict': opt.state_dict(),
                         'losses': losses,
