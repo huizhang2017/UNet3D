@@ -2,7 +2,7 @@ import pandas as pd
 
 if __name__ == '__main__':
     
-    image_path = 'D:/Downloads/Alveolar_Cleft/GroundTruth/flip_Res0p4_smoothed/'
+    image_path = '/data/data/Beijing_CBCT_Unilateral_Cleft_Lip_and_Palate/GroundTruth/flip_Res0p4_smoothed/'
     
     image_filename = []
     annotation_filename = []

@@ -2,6 +2,7 @@ import os
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import StepLR
 import torch.optim as optim
 import torch.nn as nn
 from dataset import *
@@ -18,16 +19,16 @@ if __name__ == '__main__':
     val_list = './val_list.csv'
     
     model_path = './models/'
-    model_name = 'unet3d_test' #remember to include the project title (e.g., ALV)
+    model_name = 'ALV_unet3d_patch64x64x64_1500_3labels_30samples' #remember to include the project title (e.g., ALV)
     checkpoint_name = 'latest_checkpoint.tar'
     
     num_classes = 3
     num_channels = 1
-    num_epochs = 3
-    num_workers = 4
-    train_batch_size = 5
+    num_epochs = 50 
+    num_workers = 6
+    train_batch_size = 6
     val_batch_size = 1
-    num_batches_print = 20
+    num_batches_print = 200
     
     
     # set plotter
@@ -55,7 +56,8 @@ if __name__ == '__main__':
     # set model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = UNet3D(in_channels=num_channels, out_channels=num_classes).to(device, dtype=torch.float)
-    opt = optim.Adam(model.parameters(), lr=0.001, amsgrad=True)
+    opt = optim.Adam(model.parameters(), lr=0.0001, amsgrad=True)
+    #scheduler = StepLR(opt, step_size=2, gamma=0.8)
     
     losses, metrics = [], []
     val_losses, val_metrics = [], []
@@ -69,6 +71,7 @@ if __name__ == '__main__':
     print('Training model...')
     class_weights = torch.Tensor([0.05, 1.0, 2.0]).to(device, dtype=torch.float).to(device, dtype=torch.float)
     for epoch in range(num_epochs):
+
 
         # training
         model.train()
@@ -104,7 +107,7 @@ if __name__ == '__main__':
                 plotter.plot('DSC', 'train', 'DSC', epoch+(i_batch+1)/len(train_loader), running_metric/num_batches_print)
                 running_loss = 0.0
                 running_metric = 0.0
-        
+
         # record losses and metrics
         losses.append(loss_epoch/len(train_loader))
         metrics.append(metric_epoch/len(train_loader))
@@ -183,3 +186,5 @@ if __name__ == '__main__':
         stat = pd.DataFrame(pd_dict)
         stat.to_csv('losses_metrics_vs_epoch.csv')
             
+        # decay learning rate
+        #scheduler.step()

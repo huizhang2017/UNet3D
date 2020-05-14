@@ -21,12 +21,14 @@ if __name__ == '__main__':
     torch.cuda.set_device(utils.get_avail_gpu()) # assign which gpu will be used (only linux works)
       
     model_path = './models/'
-    model_name = 'checkpoint.tar'
+    #model_name = 'checkpoint.tar'
+    model_name = 'ALV_unet3d_patch64x64x64_1500_3labels_30samples_best.tar'
     
-    image_path = 'D:/Downloads/Alveolar_Cleft/GroundTruth/flip_Res0p4_smoothed/'
-    test_list = [27, 28]
+    image_path = '/data/data/Beijing_CBCT_Unilateral_Cleft_Lip_and_Palate/GroundTruth/flip_Res0p4_smoothed/'
+    test_list = [1, 2, 5, 13, 15, 17]
     test_image_filename = 'NORMAL0{0}_cbq-n3-7.hdr'
     test_label_filename = 'NORMAL0{0}-ls-corrected-ordered-smoothed.nrrd'
+    test_path = './test/'
     
     num_classes = 3
     num_channels = 1
@@ -37,9 +39,10 @@ if __name__ == '__main__':
     model = UNet3D(in_channels=num_channels, out_channels=num_classes).to(device, dtype=torch.float)
     
     # load trained model
-    checkpoint = torch.load(model_path+model_name)
+    checkpoint = torch.load(model_path+model_name, map_location='cpu')
     model.load_state_dict(checkpoint['model_state_dict'])
     del checkpoint
+    model = model.to(device, dtype=torch.float)
     
     #cudnn
     torch.backends.cudnn.benchmark = True
@@ -54,6 +57,7 @@ if __name__ == '__main__':
     with torch.no_grad():
         for i_sample in test_list:
             
+            print('Predicting Sampel filename: {}'.format(test_image_filename.format(i_sample)))
             # read image and label (annotation)
             itk_image = itk.imread(image_path+test_image_filename.format(i_sample))
             itk_label = itk.imread(image_path+test_label_filename.format(i_sample))
@@ -81,11 +85,10 @@ if __name__ == '__main__':
             # create patches covering the entire image
             image_patches = tensor_image.unfold(1, patch_size[0], get_stride(np_image.shape[1], patch_size[0])).unfold(2, patch_size[1], get_stride(np_image.shape[2], patch_size[1])).unfold(3, patch_size[2], get_stride(np_image.shape[3], patch_size[2]))
             image_patches = image_patches.reshape(-1, 1, patch_size[0], patch_size[1], patch_size[2])
-            patch_image = image_patches
            
-            patch_output = np.zeros(patch_image.shape)
-            for i_patch in range(patch_image.shape[0]):
-                tensor_prob_output = model(patch_image[i_patch, :, :, :, :,].view(-1, num_channels, patch_size[0], patch_size[1], patch_size[2])).detach()
+            patch_output = np.zeros(image_patches.shape)
+            for i_patch in range(image_patches.shape[0]):
+                tensor_prob_output = model(image_patches[i_patch, :, :, :, :,].view(-1, num_channels, patch_size[0], patch_size[1], patch_size[2]).to(device, dtype=torch.float)).detach()
                 patch_prob_output = tensor_prob_output.cpu().numpy()
                 
                 for i_label in range(num_classes):
@@ -104,7 +107,7 @@ if __name__ == '__main__':
                         
             # output test result
             itk_predict_label = itk.image_view_from_array(predicted_label)
-            itk.imwrite(itk_predict_label, 'Sample_{}_deployed.nrrd'.format(i_sample))
+            itk.imwrite(itk_predict_label, test_path+'Sample_{}_deployed.nrrd'.format(i_sample))
             
             # convert predict result and label to one-hot maps
             tensor_predicted_label = torch.from_numpy(predicted_label)
@@ -120,10 +123,12 @@ if __name__ == '__main__':
             dsc = DSC(one_hot_predicted_label, one_hot_labels)
             dsc_label_1.append(dsc[0])
             dsc_label_2.append(dsc[1])
+            print('\tLabel 1: {}; Label 2: {}'.format(dsc[0], dsc[1]))
         
     # output all DSCs
     all_dsc = pd.DataFrame(list(zip(test_list, dsc_label_1, dsc_label_2)), columns=['Sample', 'Label 1', 'Label 2'])
-    all_dsc.to_csv('test_DSC_report.csv', header=True, index=False)
+    print(all_dsc)
+    all_dsc.to_csv(test_path+'test_DSC_report.csv', header=True, index=False)
             
     
             

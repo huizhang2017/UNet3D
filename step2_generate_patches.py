@@ -149,10 +149,10 @@ def generate_random_patches(image_list, h5_path, patch_size, target_num_patches_
 if __name__ == "__main__": 
     
     #inputs
-    num_workers = 4
+    num_workers = 8
     csv_file = 'data_list.csv'
     csv_path = './'
-    h5_path = 'D:/Downloads/Alveolar_Cleft/pytorch_UNet3D/patches/'
+    h5_path = './patches/'
     h5_list_path = './' # train_list.txt and val_list.txt
     
     #remove old patches (h5 files) in h5_path
@@ -160,11 +160,11 @@ if __name__ == "__main__":
     for f in old_file_list:
         os.remove(os.path.join(h5_path, f))
     
-    train_patch_size = np.array([32, 32, 32])
+    train_patch_size = np.array([64, 64, 64])
     val_patch_size = np.array([128, 128, 128])
-    target_num_patches_each_label = np.array([2, 10, 10])
+    target_num_patches_each_label = np.array([250, 625, 625])
     valid_pct = 0.01
-    train_size = 0.98
+    train_size = 0.8
     
     csv_file = os.path.join(csv_path, csv_file)
     image_list = pd.read_csv(csv_file)
@@ -218,6 +218,3 @@ if __name__ == "__main__":
     val_list = glob.glob(h5_path+'val_*.h5')
     val_pd = pd.DataFrame(val_list)
     val_pd.to_csv('val_list.csv', header=False, index=False)
-                
-    
-    
