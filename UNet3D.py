@@ -6,7 +6,6 @@ from torchsummary import summary
 
 
 class UNet3D(nn.Module):
-
     def __init__(self, in_channels=1, out_channels=3, init_features=64):
         super(UNet3D, self).__init__()
 

@@ -4,15 +4,16 @@ import torch
 from torch.utils.data import DataLoader
 import torch.optim as optim
 import torch.nn as nn
-from dataset import *
+from CT_dataset import *
 from UNet3D import *
-from loss import *
+from losses_and_metrics import *
 import utils
 import pandas as pd
 
 if __name__ == '__main__':
     
     torch.cuda.set_device(utils.get_avail_gpu()) # assign which gpu will be used (only linux works)
+    use_visdom = False
     
     train_list = './train_list.csv'
     val_list = './val_list.csv'
@@ -21,28 +22,28 @@ if __name__ == '__main__':
     previous_check_point_name = 'latest_checkpoint.tar'
     model_path = './models/'
     model_name = 'unet3d_cont_test'
-    checkpoint_name = 'latest2_checkpoint.tar'
+    checkpoint_name = 'latest_checkpoint_cont.tar'
     
     num_classes = 3
     num_channels = 1
-    num_epochs = 20
-    num_workers = 4
-    train_batch_size = 2
+    num_epochs = 100
+    num_workers = 6
+    train_batch_size = 6
     val_batch_size = 1
-    num_batches_print = 20
+    num_batches_to_print = 200
     
-    
-    # set plotter
-    global plotter
-    plotter = utils.VisdomLinePlotter(env_name=model_name)
+    if use_visdom:
+        # set plotter
+        global plotter
+        plotter = utils.VisdomLinePlotter(env_name=model_name)
     
     # mkdir 'models'
     if not os.path.exists(model_path):
         os.mkdir(model_path)
     
     # set dataset
-    training_dataset = CBCT_Dataset(train_list)
-    val_dataset = CBCT_Dataset(val_list)
+    training_dataset = CT_Dataset(train_list)
+    val_dataset = CT_Dataset(val_list)
     
     train_loader = DataLoader(dataset=training_dataset,
                               batch_size=train_batch_size,
@@ -56,11 +57,12 @@ if __name__ == '__main__':
     
     # set model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = UNet3D(in_channels=num_channels, out_channels=num_classes).to(device, dtype=torch.float)
-    opt = optim.Adam(model.parameters(), lr=0.001, amsgrad=True)
+    model = UNet3D(in_channels=num_channels, out_channels=num_classes)
+    model = model.to(device, dtype=torch.float)
+    opt = optim.Adam(model.parameters(), lr=0.0001, amsgrad=True)
     
     # re-load
-    checkpoint = torch.load(previous_check_point_path+previous_check_point_name)
+    checkpoint = torch.load(previous_check_point_path+previous_check_point_name, map_location='cpu')
     model.load_state_dict(checkpoint['model_state_dict'])
     opt.load_state_dict(checkpoint['optimizer_state_dict'])
     epoch_init = checkpoint['epoch']
@@ -70,12 +72,14 @@ if __name__ == '__main__':
     val_metrics = checkpoint['val_metrics']
     del checkpoint
     
-    # plot previous data
-    for i_epoch in range(len(losses)):
-        plotter.plot('loss', 'train', 'Loss', i_epoch+1, losses[i_epoch])
-        plotter.plot('DSC', 'train', 'DSC', i_epoch+1, metrics[i_epoch])
-        plotter.plot('loss', 'val', 'Loss', i_epoch+1, val_losses[i_epoch])
-        plotter.plot('DSC', 'val', 'DSC', i_epoch+1, val_metrics[i_epoch])
+    
+    if use_visdom:
+        # plot previous data
+        for i_epoch in range(len(losses)):
+            plotter.plot('loss', 'train', 'Loss', i_epoch+1, losses[i_epoch])
+            plotter.plot('DSC', 'train', 'DSC', i_epoch+1, metrics[i_epoch])
+            plotter.plot('loss', 'val', 'Loss', i_epoch+1, val_losses[i_epoch])
+            plotter.plot('DSC', 'val', 'DSC', i_epoch+1, val_metrics[i_epoch])
     
     best_val_dsc = 0.0
     
@@ -84,7 +88,7 @@ if __name__ == '__main__':
     torch.backends.cudnn.enabled = True
     
     print('Continuous Training...')
-    class_weights = torch.Tensor([0.05, 1.0, 2.0]).to(device, dtype=torch.float).to(device, dtype=torch.float)
+    class_weights = torch.Tensor([0.05, 1.0, 2.0]).to(device, dtype=torch.float)
     for epoch in range(epoch_init, num_epochs):
 
         # training
@@ -115,10 +119,11 @@ if __name__ == '__main__':
             running_metric += metric.item()
             loss_epoch += loss.item()
             metric_epoch += metric.item()
-            if i_batch % num_batches_print == num_batches_print-1:  # print every N mini-batches
-                print('[Epoch: {0}/{1}, Batch: {2}/{3}] loss: {4}, dsc: {5}'.format(epoch+1, num_epochs, i_batch+1, len(train_loader), running_loss/num_batches_print, running_metric/num_batches_print))
-                plotter.plot('loss', 'train', 'Loss', epoch+(i_batch+1)/len(train_loader), running_loss/num_batches_print)
-                plotter.plot('DSC', 'train', 'DSC', epoch+(i_batch+1)/len(train_loader), running_metric/num_batches_print)
+            if i_batch % num_batches_to_print == num_batches_to_print-1:  # print every N mini-batches
+                print('[Epoch: {0}/{1}, Batch: {2}/{3}] loss: {4}, dsc: {5}'.format(epoch+1, num_epochs, i_batch+1, len(train_loader), running_loss/num_batches_to_print, running_metric/num_batches_to_print))
+                if use_visdom:
+                    plotter.plot('loss', 'train', 'Loss', epoch+(i_batch+1)/len(train_loader), running_loss/num_batches_to_print)
+                    plotter.plot('DSC', 'train', 'DSC', epoch+(i_batch+1)/len(train_loader), running_metric/num_batches_to_print)
                 running_loss = 0.0
                 running_metric = 0.0
         
@@ -153,8 +158,8 @@ if __name__ == '__main__':
                 val_loss_epoch += val_loss.item()
                 val_metric_epoch += val_metric.item()
                 
-                if i_batch % num_batches_print == num_batches_print-1:  # print every N mini-batches
-                    print('[Epoch: {0}/{1}, Val batch: {2}/{3}] val_loss: {4}, val_dsc: {5}'.format(epoch+1, num_epochs, i_batch+1, len(val_loader), running_val_loss/num_batches_print, running_val_metric/num_batches_print))
+                if i_batch % num_batches_to_print == num_batches_to_print-1:  # print every N mini-batches
+                    print('[Epoch: {0}/{1}, Val batch: {2}/{3}] val_loss: {4}, val_dsc: {5}'.format(epoch+1, num_epochs, i_batch+1, len(val_loader), running_val_loss/num_batches_to_print, running_val_metric/num_batches_to_print))
                     running_val_loss = 0.0
                     running_val_metric = 0.0
                 
@@ -168,10 +173,11 @@ if __name__ == '__main__':
             
             # output current status
             print('*****\nEpoch: {0}/{1}, loss: {2}, dsc: {3}\n         val_loss: {4}, val_dsc: {5}\n*****'.format(epoch+1, num_epochs, losses[-1], metrics[-1], val_losses[-1], val_metrics[-1]))
-            plotter.plot('loss', 'train', 'Loss', epoch+1, losses[-1])
-            plotter.plot('DSC', 'train', 'DSC', epoch+1, metrics[-1])
-            plotter.plot('loss', 'val', 'Loss', epoch+1, val_losses[-1])
-            plotter.plot('DSC', 'val', 'DSC', epoch+1, val_metrics[-1])
+            if use_visdom:
+                plotter.plot('loss', 'train', 'Loss', epoch+1, losses[-1])
+                plotter.plot('DSC', 'train', 'DSC', epoch+1, metrics[-1])
+                plotter.plot('loss', 'val', 'Loss', epoch+1, val_losses[-1])
+                plotter.plot('DSC', 'val', 'DSC', epoch+1, val_metrics[-1])
             
         # save the checkpoint
         torch.save({'epoch': epoch,

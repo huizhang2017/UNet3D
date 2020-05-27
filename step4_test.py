@@ -2,7 +2,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 from UNet3D import *
-from loss import *
 import utils
 import itk
 import pandas as pd
@@ -128,6 +127,7 @@ if __name__ == '__main__':
     # output all DSCs
     all_dsc = pd.DataFrame(list(zip(test_list, dsc_label_1, dsc_label_2)), columns=['Sample', 'Label 1', 'Label 2'])
     print(all_dsc)
+    print(all_dsc.describe())
     all_dsc.to_csv(test_path+'test_DSC_report.csv', header=True, index=False)
             
     
