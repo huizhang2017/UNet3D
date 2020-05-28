@@ -62,7 +62,7 @@ if __name__ == '__main__':
     opt = optim.Adam(model.parameters(), lr=0.0001, amsgrad=True)
     
     # re-load
-    checkpoint = torch.load(previous_check_point_path+previous_check_point_name, map_location='cpu')
+    checkpoint = torch.load(os.path.join(previous_check_point_path, previous_check_point_name), map_location='cpu')
     model.load_state_dict(checkpoint['model_state_dict'])
     opt.load_state_dict(checkpoint['optimizer_state_dict'])
     epoch_init = checkpoint['epoch']
@@ -81,7 +81,7 @@ if __name__ == '__main__':
             plotter.plot('loss', 'val', 'Loss', i_epoch+1, val_losses[i_epoch])
             plotter.plot('DSC', 'val', 'DSC', i_epoch+1, val_metrics[i_epoch])
     
-    best_val_dsc = 0.0
+    best_val_dsc = max(val_metrics)
     
     #cudnn
     torch.backends.cudnn.benchmark = True
@@ -187,7 +187,7 @@ if __name__ == '__main__':
                     'metrics': metrics,
                     'val_losses': val_losses,
                     'val_metrics': val_metrics},
-                    model_path+checkpoint_name)
+                    os.path.join(model_path, checkpoint_name))
         
         # save the best model
         if best_val_dsc < val_metrics[-1]:
@@ -199,7 +199,7 @@ if __name__ == '__main__':
                         'metrics': metrics,
                         'val_losses': val_losses,
                         'val_metrics': val_metrics},
-                        model_path+'{}_best.tar'.format(model_name))
+                        os.path.join(model_path, '{}_best.tar'.format(model_name)))
             
         # save all losses and metrics data
         pd_dict = {'loss': losses, 'DSC': metrics, 'val_loss': val_losses, 'val_DSC': val_metrics}

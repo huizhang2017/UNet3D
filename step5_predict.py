@@ -40,7 +40,7 @@ if __name__ == '__main__':
     model = UNet3D(in_channels=num_channels, out_channels=num_classes)#.to(device, dtype=torch.float)
     
     # load trained model
-    checkpoint = torch.load(model_path+model_name, map_location='cpu')
+    checkpoint = torch.load(os.path.join(model_path, model_name), map_location='cpu')
     model.load_state_dict(checkpoint['model_state_dict'])
     del checkpoint
     model = model.to(device, dtype=torch.float)
@@ -55,9 +55,9 @@ if __name__ == '__main__':
     with torch.no_grad():
         for i_sample in sample_list:
             
-            print('Predicting Sampel filename: {}'.format(sample_image_filename.format(i_sample)))
+            print('Predicting Sample filename: {}'.format(sample_image_filename.format(i_sample)))
             # read image and label (annotation)
-            itk_image = itk.imread(image_path+sample_image_filename.format(i_sample))
+            itk_image = itk.imread(os.path.join(image_path, sample_image_filename.format(i_sample)))
             np_image = itk.array_from_image(itk_image)
             predict_label = np.zeros(np_image.shape)
         
@@ -103,4 +103,4 @@ if __name__ == '__main__':
                         
             # output result
             itk_predict_label = itk.image_view_from_array(predict_label)
-            itk.imwrite(itk_predict_label, output_path+'Sample_{}_deployed.nrrd'.format(i_sample))
+            itk.imwrite(itk_predict_label, os.path.join(output_path, 'Sample_{}_deployed.nrrd'.format(i_sample)))

@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -5,6 +6,7 @@ from UNet3D import *
 import utils
 import itk
 import pandas as pd
+from losses_and_metrics import *
 
 def get_stride(image_width, kernel_size):
     '''
@@ -19,15 +21,17 @@ if __name__ == '__main__':
     
     torch.cuda.set_device(utils.get_avail_gpu()) # assign which gpu will be used (only linux works)
       
-    model_path = './models/'
+    model_path = './models'
     #model_name = 'checkpoint.tar'
-    model_name = 'ALV_unet3d_patch64x64x64_1500_3labels_30samples_best.tar'
+    model_name = 'ALV_unet3d_patch64x64x64_3000_3labels_30samples_best.tar'
     
-    image_path = '/data/data/Beijing_CBCT_Unilateral_Cleft_Lip_and_Palate/GroundTruth/flip_Res0p4_smoothed/'
-    test_list = [1, 2, 5, 13, 15, 17]
+    image_path = '/data/data/Beijing_CBCT_Unilateral_Cleft_Lip_and_Palate/GroundTruth/flip_Res0p4_smoothed'
+    test_list = [2, 6, 8, 9, 12, 18]
     test_image_filename = 'NORMAL0{0}_cbq-n3-7.hdr'
     test_label_filename = 'NORMAL0{0}-ls-corrected-ordered-smoothed.nrrd'
-    test_path = './test/'
+    test_path = './test'
+    if not os.path.exists(test_path):
+        os.mkdir(test_path)
     
     num_classes = 3
     num_channels = 1
@@ -38,7 +42,7 @@ if __name__ == '__main__':
     model = UNet3D(in_channels=num_channels, out_channels=num_classes).to(device, dtype=torch.float)
     
     # load trained model
-    checkpoint = torch.load(model_path+model_name, map_location='cpu')
+    checkpoint = torch.load(os.path.join(model_path, model_name), map_location='cpu')
     model.load_state_dict(checkpoint['model_state_dict'])
     del checkpoint
     model = model.to(device, dtype=torch.float)
@@ -56,10 +60,10 @@ if __name__ == '__main__':
     with torch.no_grad():
         for i_sample in test_list:
             
-            print('Predicting Sampel filename: {}'.format(test_image_filename.format(i_sample)))
+            print('Predicting Sample filename: {}'.format(test_image_filename.format(i_sample)))
             # read image and label (annotation)
-            itk_image = itk.imread(image_path+test_image_filename.format(i_sample))
-            itk_label = itk.imread(image_path+test_label_filename.format(i_sample))
+            itk_image = itk.imread(os.path.join(image_path, test_image_filename.format(i_sample)))
+            itk_label = itk.imread(os.path.join(image_path, test_label_filename.format(i_sample)))
             np_image = itk.array_from_image(itk_image)
             np_label = itk.array_from_image(itk_label)
             predicted_label = np.zeros(np_label.shape)
@@ -106,7 +110,7 @@ if __name__ == '__main__':
                         
             # output test result
             itk_predict_label = itk.image_view_from_array(predicted_label)
-            itk.imwrite(itk_predict_label, test_path+'Sample_{}_deployed.nrrd'.format(i_sample))
+            itk.imwrite(itk_predict_label, os.path.join(test_path, 'Sample_{}_deployed.nrrd'.format(i_sample)))
             
             # convert predict result and label to one-hot maps
             tensor_predicted_label = torch.from_numpy(predicted_label)
@@ -128,7 +132,7 @@ if __name__ == '__main__':
     all_dsc = pd.DataFrame(list(zip(test_list, dsc_label_1, dsc_label_2)), columns=['Sample', 'Label 1', 'Label 2'])
     print(all_dsc)
     print(all_dsc.describe())
-    all_dsc.to_csv(test_path+'test_DSC_report.csv', header=True, index=False)
+    all_dsc.to_csv(os.path.join(test_path, 'test_DSC_report.csv'), header=True, index=False)
             
     
             
