@@ -14,7 +14,7 @@ def weighting_DSC(y_pred, y_true, class_weights, smooth = 1.0):
     one_hot.scatter_(1, max_idx, 1)
 
     for c in range(1, n_classes): #pass 0 because 0 is background
-        pred_flat = y_pred[:, c].reshape(-1)
+        pred_flat = one_hot[:, c].reshape(-1)
         true_flat = y_true[:, c].reshape(-1)
         intersection = (pred_flat * true_flat).sum()
         w = class_weights[c]/class_weights.sum()
