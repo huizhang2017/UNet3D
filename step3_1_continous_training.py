@@ -13,7 +13,7 @@ import pandas as pd
 if __name__ == '__main__':
     
     torch.cuda.set_device(utils.get_avail_gpu()) # assign which gpu will be used (only linux works)
-    use_visdom = False
+    use_visdom = True
     
     train_list = './train_list.csv'
     val_list = './val_list.csv'
@@ -145,12 +145,12 @@ if __name__ == '__main__':
             for i_batch, batched_val_sample in enumerate(val_loader):
                 
                 # send mini-batch to device
-                val_inputs, val_labels = batched_val_sample['image'].to(device, dtype=torch.float), batched_val_sample['label'].to(device, dtype=torch.long)
-                one_hot_labels = nn.functional.one_hot(val_labels[:, 0, :, :, :], num_classes=num_classes)
+                inputs, labels = batched_val_sample['image'].to(device, dtype=torch.float), batched_val_sample['label'].to(device, dtype=torch.long)
+                one_hot_labels = nn.functional.one_hot(labels[:, 0, :, :, :], num_classes=num_classes)
                 one_hot_labels = one_hot_labels.permute(0, 4, 1, 2, 3)
                 
-                val_outputs = model(val_inputs).detach()
-                val_loss = Generalized_Dice_Loss(val_outputs, one_hot_labels, class_weights).detach()
+                outputs = model(inputs).detach()
+                val_loss = Generalized_Dice_Loss(outputs, one_hot_labels, class_weights).detach()
                 val_metric = weighting_DSC(val_outputs, one_hot_labels, class_weights).detach()
                 
                 running_val_loss += val_loss.item()
