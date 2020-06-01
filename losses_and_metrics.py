@@ -4,8 +4,8 @@ import numpy as np
 def weighting_DSC(y_pred, y_true, class_weights, smooth = 1.0):
     '''
     inputs:
-        y_pred [n_classes, x, y, z] probability
-        y_true [n_classes, x, y, z] one-hot code
+        y_pred [batch, n_classes, x, y, z] probability
+        y_true [batch, n_classes, x, y, z] one-hot code
         class_weights
         smooth = 1.0
     '''
@@ -18,7 +18,7 @@ def weighting_DSC(y_pred, y_true, class_weights, smooth = 1.0):
     one_hot = torch.zeros_like(y_pred)
     one_hot.scatter_(1, max_idx, 1)
 
-    for c in range(1, n_classes): #pass 0 because 0 is background
+    for c in range(0, n_classes):
         pred_flat = one_hot[:, c].reshape(-1)
         true_flat = y_true[:, c].reshape(-1)
         intersection = (pred_flat * true_flat).sum()
@@ -31,8 +31,8 @@ def weighting_DSC(y_pred, y_true, class_weights, smooth = 1.0):
 def Generalized_Dice_Loss(y_pred, y_true, class_weights, smooth = 1.0):
     '''
     inputs:
-        y_pred [n_classes, x, y, z] probability
-        y_true [n_classes, x, y, z] one-hot code
+        y_pred [batch, n_classes, x, y, z] probability
+        y_true [batch, n_classes, x, y, z] one-hot code
         class_weights
         smooth = 1.0
     '''
