@@ -103,4 +103,4 @@ if __name__ == '__main__':
                         
             # output result
             itk_predict_label = itk.image_view_from_array(predict_label)
-            itk.imwrite(itk_predict_label, os.path.join(output_path, 'Sample_{}_deployed.nrrd'.format(i_sample)))
+            itk.imwrite(itk_predict_label, os.path.join(output_path, 'Sample_{}_predicted.nrrd'.format(i_sample)))

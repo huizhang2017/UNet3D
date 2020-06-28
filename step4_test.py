@@ -110,7 +110,7 @@ if __name__ == '__main__':
                         
             # output test result
             itk_predict_label = itk.image_view_from_array(predicted_label)
-            itk.imwrite(itk_predict_label, os.path.join(test_path, 'Sample_{}_deployed.nrrd'.format(i_sample)))
+            itk.imwrite(itk_predict_label, os.path.join(test_path, 'Sample_{}_predicted.nrrd'.format(i_sample)))
             
             # convert predict result and label to one-hot maps
             tensor_predicted_label = torch.from_numpy(predicted_label)
