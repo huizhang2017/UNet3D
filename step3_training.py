@@ -154,7 +154,7 @@ if __name__ == '__main__':
             val_dsc_epoch = 0.0
             
             # output current status
-            print('*****\nEpoch: {0}/{1}, loss: {2}, dsc: {3}\n         val_loss: {4}, val_dsc: {5}\n*****'.format(epoch+1, num_epochs, losses[-1], dsc[-1], val_losses[-1], val_dsc[-1]))
+            print('*****\nEpoch: {0}/{1}, loss: {2}, dsc: {3}\n         val_loss: {4}, val_dsc: {5}\n*****'.format(epoch+1, num_epochs, losses[-1], mdsc[-1], val_losses[-1], val_mdsc[-1]))
             if use_visdom:
                 plotter.plot('loss', 'train', 'Loss', epoch+1, losses[-1])
                 plotter.plot('DSC', 'train', 'DSC', epoch+1, mdsc[-1])
